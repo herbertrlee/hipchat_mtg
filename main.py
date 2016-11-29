@@ -17,17 +17,20 @@ app = Flask(__name__)
 app.config['DEBUG'] = True
 
 requests_toolbelt.adapters.appengine.monkeypatch()
-ECHO_PATTERN = re.compile("^/[eE][cC][hH][oO](.*)")
+CARD_PATTERN = re.compile("^/[cC][aA][rR][dD](.*)")
+
+MTG_API_URL = "https://api.magicthegathering.io/v1/cards"
+GATHERER_URL = "http://gatherer.wizards.com/Pages/Card/Details.aspx?multiverseid=%d"
 
 
-def strip_echo_command(echo_message):
-    return ECHO_PATTERN.search(echo_message).group(1).strip()
+def strip_slash_command(card_message):
+    return CARD_PATTERN.search(card_message).group(1).strip()
 
 
 @app.route('/')
 def root():
     """Return a friendly HTTP greeting."""
-    return 'Hello world!'
+    return 'Magic is for nerds!'
 
 
 @app.errorhandler(404)
@@ -84,10 +87,9 @@ def uninstall_callback():
     return redirect(redirect_url, 302)
 
 
-@app.route('/echo', methods=['POST'])
-def echo():
-    """Webhook endpoint.  Reads a message that matches the pattern from the capabilities.json, strips the leading /echo,
-    and echoes the rest of the message back to the room.
+@app.route('/card', methods=['POST'])
+def card():
+    """Webhook endpoint.  Looks up the card specified and sends it back to the hipchat room.
     """
     request_dict = json.loads(request.data)
     oauth_id = request_dict['oauth_client_id']
@@ -98,11 +100,48 @@ def echo():
         logging.warning("Installation with oauth id %s not found", oauth_id)
         return '', 204
 
-    echo_message = request_dict['item']['message']['message']
-    message = strip_echo_command(echo_message)
+    full_message = request_dict['item']['message']['message']
+    card_name = strip_slash_command(full_message)
 
-    logging.info("Echoing message %s", message)
-    payload = {"color": "green", "message": message, "message_format": "text"}
+    logging.info("Looking up card %s.", card_name)
+
+    cards_dict = requests.get(MTG_API_URL, params={"name": '"%s"' % card_name}).json()
+    cards_list = cards_dict["cards"]
+
+    if not cards_list:
+        logging.error("No card found with name %s.", card_name)
+        payload = {
+            "color": "red",
+            "message": "Sorry, I couldn't find a card called %s." % card_name,
+            "message_format": "text"
+        }
+        installation.send_notification(payload)
+        return '', 204
+
+    card_dict = cards_list[0]
+    official_card_name = card_dict["name"]
+    card_id = card_dict["id"]
+    card_text = card_dict.get("text", "")
+    multiverse_id = card_dict["multiverseid"]
+    image_url = card_dict["imageUrl"]
+
+    payload = {
+        "color": "green",
+        "message": official_card_name,
+        "message_format": "text",
+        "card": {
+            "style": "link",
+            "url": GATHERER_URL % multiverse_id,
+            "id": card_id,
+            "title": official_card_name,
+            "description": card_text,
+            "thumbnail": {
+                "url": image_url
+            }
+        }
+    }
+
+    logging.info(payload)
     installation.send_notification(payload)
 
     return '', 204

@@ -1,6 +1,6 @@
 {
-  "name": "Hipchat GAE Sample Integration",
-  "description": "A basic Hipchat integration built on Google App Engine using Flask.",
+  "name": "CardBot",
+  "description": "A Magic: The Gathering HipChat integration.",
   "key": "{{ project_id }}",
   "links": {
       "homepage": "https://{{ project_id }}.appspot.com",
@@ -14,7 +14,7 @@
         "uninstalledUrl": "https://{{ project_id }}.appspot.com/uninstalled"
       },
       "hipchatApiConsumer": {
-          "fromName": "Hipchat GAE Sample Integration",
+          "fromName": "CardBot",
           "scopes": [
               "send_notification",
               "view_messages"
@@ -22,10 +22,10 @@
       },
       "webhook": [
         {
-          "url": "https://{{ project_id }}.appspot.com/echo",
-          "pattern": "^/[eE][cC][hH][oO]",
+          "url": "https://{{ project_id }}.appspot.com/card",
+          "pattern": "^/[cC][aA][rR][dD]",
           "event": "room_message",
-          "name": "echo"
+          "name": "card"
         }
       ]
   }
